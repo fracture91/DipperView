@@ -8,6 +8,7 @@
 #include <net/ethernet.h>
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
+#include <netinet/udp.h>
 using namespace std;
 
 #define HADDR_BUFLEN 18
@@ -20,6 +21,7 @@ void getHAddr(char hAddr[HADDR_BUFLEN], u_int8_t bytes[ETH_ALEN]);
 void getIPAddr(char ipAddr[IPADDR_BUFLEN], u_int32_t naddr);
 void printMap(map<string, int> &toPrint);
 void printArpMap(multimap<string, string> &toPrint);
+void printSet(set<u_int16_t> &toPrint);
 void mapIncrement(map<string, int> &toUpdate, const string &key);
 void arpMapUpdate(multimap<string, string> &toUpdate, u_int8_t ha[ETH_ALEN], u_int8_t pa[4]);
 
@@ -31,8 +33,8 @@ map<string, int> g_etherRecipientPacketCounts;
 map<string, int> g_IPSenderPacketCounts;
 map<string, int> g_IPRecipientPacketCounts;
 multimap<string, string> g_ARPParticipants;
-set<int> g_UDPSourcePorts;
-set<int> g_UDPDestPorts;
+set<u_int16_t> g_UDPSourcePorts;
+set<u_int16_t> g_UDPDestPorts;
 bpf_u_int32 g_minPacketSize = 0xFFFFFFFF;
 bpf_u_int32 g_maxPacketSize;
 bpf_u_int32 g_totalPacketSize;
@@ -101,7 +103,6 @@ int main(int argc, char* argv[]) {
 	
     //Print the total number of packets.
 	cout<<"Total number of packets: "<<g_numPackets<<endl;
-    //For UDP, create two lists for the unique ports seen: one for the source ports and one for the destination ports.
     //Report the average, minimum, and maximum packet sizes. The packet size refers to everything beyond the tcpdump header.
 	cout<<"Min packet size: "<<g_minPacketSize<<" Bytes"<<endl
 		<<"Max packet size: "<<g_maxPacketSize<<" Bytes"<<endl
@@ -109,18 +110,25 @@ int main(int argc, char* argv[]) {
 		
 	
     //Create two lists, one for unique senders and one for unique recipients, along with the total number of packets associated with each. This should be done at two layers: Ethernet and IP. For Ethernet, represent the addresses in hex-colon notation. For IP addresses, use the standard dotted decimal notation.
-	cout<<"Ethernet Senders:"<<endl;
+	cout<<endl<<"Ethernet Senders:"<<endl;
 	printMap(g_etherSenderPacketCounts);
-	cout<<"Ethernet Recipients:"<<endl;
+	cout<<endl<<"Ethernet Recipients:"<<endl;
 	printMap(g_etherRecipientPacketCounts);	
-	cout<<"IP Senders:"<<endl;
+	cout<<endl<<"IP Senders:"<<endl;
 	printMap(g_IPSenderPacketCounts);
-	cout<<"IP Recipients:"<<endl;
+	cout<<endl<<"IP Recipients:"<<endl;
 	printMap(g_IPRecipientPacketCounts);
 	
     //Create a list of machines participating in ARP, including their associated MAC addresses and, where possible, the associated IP addresses.
-	cout<<"ARP Participants:"<<endl;
+	cout<<endl<<"ARP Participants:"<<endl;
 	printArpMap(g_ARPParticipants);
+	
+    //For UDP, create two lists for the unique ports seen: one for the source ports and one for the destination ports.
+	cout<<endl<<"UDP Source Ports:"<<endl;
+	printSet(g_UDPSourcePorts);
+	cout<<endl<<"UDP Destination Ports:"<<endl;
+	printSet(g_UDPDestPorts);
+	
 	
 	return 0;
 }
@@ -129,7 +137,6 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
 	char hAddr[HADDR_BUFLEN] = "";
 	char ipAddr[IPADDR_BUFLEN] = "";
 	u_int16_t ether_type;
-	cout << "Yay packet" << endl;
 	//
 	// Pcap header
 	//
@@ -177,6 +184,16 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
 		//destination address
 		getIPAddr(ipAddr, iph->daddr);
 		mapIncrement(g_IPRecipientPacketCounts, ipAddr);
+		
+		//check for UDP
+		if(iph->protocol == IPPROTO_UDP) {
+			//
+			// UDP Header
+			//
+			struct udphdr *udph = (udphdr *)(bytes+ETH_HLEN+(iph->ihl)*4);
+			g_UDPSourcePorts.insert(ntohs(udph->source));
+			g_UDPDestPorts.insert(ntohs(udph->dest));
+		}
 	}
 	else if(ether_type == ETHERTYPE_ARP) {
 		struct ether_arp *arph = (ether_arp *)(bytes+ETH_HLEN);
@@ -249,6 +266,13 @@ void printArpMap(multimap<string, string> &toPrint) {
 		cout<<mapIt->first<<" "<<mapIt->second<<endl;
 	}
 	return;
+}
+
+void printSet(set<u_int16_t> &toPrint) {
+	set<u_int16_t>::iterator setIt;
+	for(setIt = toPrint.begin(); setIt != toPrint.end(); setIt++) {
+		cout<<*setIt<<endl;
+	}
 }
 
 void mapIncrement(map<string, int> &toUpdate, const string &key) {
