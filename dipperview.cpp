@@ -19,8 +19,9 @@ int timeval_subtract(struct timeval *result, struct timeval tv1, struct timeval 
 void getHAddr(char hAddr[HADDR_BUFLEN], u_int8_t bytes[ETH_ALEN]);
 void getIPAddr(char ipAddr[IPADDR_BUFLEN], u_int32_t naddr);
 void printMap(map<string, int> &toPrint);
-void printMap(map<string, string> &toPrint);
+void printArpMap(multimap<string, string> &toPrint);
 void mapIncrement(map<string, int> &toUpdate, const string &key);
+void arpMapUpdate(multimap<string, string> &toUpdate, u_int8_t ha[ETH_ALEN], u_int8_t pa[4]);
 
 //statistics
 struct timeval g_startTime;
@@ -29,7 +30,7 @@ map<string, int> g_etherSenderPacketCounts;
 map<string, int> g_etherRecipientPacketCounts;
 map<string, int> g_IPSenderPacketCounts;
 map<string, int> g_IPRecipientPacketCounts;
-map<string, string> g_ARPParticipants;
+multimap<string, string> g_ARPParticipants;
 set<int> g_UDPSourcePorts;
 set<int> g_UDPDestPorts;
 bpf_u_int32 g_minPacketSize = 0xFFFFFFFF;
@@ -100,8 +101,6 @@ int main(int argc, char* argv[]) {
 	
     //Print the total number of packets.
 	cout<<"Total number of packets: "<<g_numPackets<<endl;
-	
-    //Create a list of machines participating in ARP, including their associated MAC addresses and, where possible, the associated IP addresses.
     //For UDP, create two lists for the unique ports seen: one for the source ports and one for the destination ports.
     //Report the average, minimum, and maximum packet sizes. The packet size refers to everything beyond the tcpdump header.
 	cout<<"Min packet size: "<<g_minPacketSize<<" Bytes"<<endl
@@ -118,6 +117,10 @@ int main(int argc, char* argv[]) {
 	printMap(g_IPSenderPacketCounts);
 	cout<<"IP Recipients:"<<endl;
 	printMap(g_IPRecipientPacketCounts);
+	
+    //Create a list of machines participating in ARP, including their associated MAC addresses and, where possible, the associated IP addresses.
+	cout<<"ARP Participants:"<<endl;
+	printArpMap(g_ARPParticipants);
 	
 	return 0;
 }
@@ -177,7 +180,7 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
 	}
 	else if(ether_type == ETHERTYPE_ARP) {
 		struct ether_arp *arph = (ether_arp *)(bytes+ETH_HLEN);
-		
+		arpMapUpdate(g_ARPParticipants, arph->arp_sha, arph->arp_spa);
 	}
 	else {
 		
@@ -240,7 +243,7 @@ void printMap(map<string, int> &toPrint) {
 	return;
 }
 
-void printMap(map<string, string> &toPrint) {
+void printArpMap(multimap<string, string> &toPrint) {
 	map<string, string>::iterator mapIt;
 	for(mapIt = toPrint.begin(); mapIt != toPrint.end(); mapIt++) {
 		cout<<mapIt->first<<" "<<mapIt->second<<endl;
@@ -255,5 +258,23 @@ void mapIncrement(map<string, int> &toUpdate, const string &key) {
 	else {
 		toUpdate[key]++;
 	}
+	return;
+}
+
+void arpMapUpdate(multimap<string, string> &toUpdate, u_int8_t ha[ETH_ALEN], u_int8_t pa[4]) {
+	char hAddr[HADDR_BUFLEN];
+	char ipAddr[IPADDR_BUFLEN];
+	multimap<string, string>::iterator mapIt;
+	getHAddr(hAddr, ha);
+	sprintf(ipAddr, "%d.%d.%d.%d", pa[0], pa[1], pa[2], pa[3]);
+	if(toUpdate.count(hAddr) != 0) {
+		for(mapIt = toUpdate.equal_range(hAddr).first; mapIt != toUpdate.equal_range(hAddr).second; mapIt++) {
+			if(mapIt->second == ipAddr) {
+				return;
+			}
+		}
+	}
+	toUpdate.insert(pair<string, string>(hAddr, ipAddr));
+	
 	return;
 }
