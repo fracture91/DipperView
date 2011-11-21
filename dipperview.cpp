@@ -6,14 +6,18 @@
 #include <pcap.h>
 #include <sys/time.h>
 #include <net/ethernet.h>
+#include <netinet/if_ether.h>
+#include <netinet/ip.h>
 using namespace std;
 
 #define HADDR_BUFLEN 18
+#define IPADDR_BUFLEN 16
 
 void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes);
 bool timeval_isZero(struct timeval tv);
 int timeval_subtract(struct timeval *result, struct timeval tv1, struct timeval tv0);
 void getHAddr(char hAddr[HADDR_BUFLEN], u_int8_t bytes[ETH_ALEN]);
+void getIPAddr(char ipAddr[IPADDR_BUFLEN], u_int32_t naddr);
 void printMap(map<string, int> &toPrint);
 void printMap(map<string, string> &toPrint);
 void mapIncrement(map<string, int> &toUpdate, const string &key);
@@ -110,12 +114,18 @@ int main(int argc, char* argv[]) {
 	printMap(g_etherSenderPacketCounts);
 	cout<<"Ethernet Recipients:"<<endl;
 	printMap(g_etherRecipientPacketCounts);	
+	cout<<"IP Senders:"<<endl;
+	printMap(g_IPSenderPacketCounts);
+	cout<<"IP Recipients:"<<endl;
+	printMap(g_IPRecipientPacketCounts);
 	
 	return 0;
 }
 
 void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-	char hAddr[18] = "";
+	char hAddr[HADDR_BUFLEN] = "";
+	char ipAddr[IPADDR_BUFLEN] = "";
+	u_int16_t ether_type;
 	cout << "Yay packet" << endl;
 	//
 	// Pcap header
@@ -151,7 +161,27 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
 	getHAddr(hAddr, eth->ether_dhost);
 	mapIncrement(g_etherRecipientPacketCounts, hAddr);
 	
-	
+	ether_type = ntohs(eth->ether_type);
+	//Ethernet protocol
+	if(ether_type == ETHERTYPE_IP) {
+		//
+		// IP Header
+		//
+		struct iphdr *iph = (iphdr *)(bytes+ETH_HLEN);
+		//source address
+		getIPAddr(ipAddr, iph->saddr);
+		mapIncrement(g_IPSenderPacketCounts, ipAddr);
+		//destination address
+		getIPAddr(ipAddr, iph->daddr);
+		mapIncrement(g_IPRecipientPacketCounts, ipAddr);
+	}
+	else if(ether_type == ETHERTYPE_ARP) {
+		struct ether_arp *arph = (ether_arp *)(bytes+ETH_HLEN);
+		
+	}
+	else {
+		
+	}
 }
 
 bool timeval_isZero(struct timeval tv) {
@@ -192,6 +222,13 @@ int timeval_subtract(struct timeval *result, struct timeval tv1, struct timeval 
 
 void getHAddr(char hAddr[HADDR_BUFLEN], u_int8_t bytes[ETH_ALEN]) {
 	sprintf(hAddr, "%02x:%02x:%02x:%02x:%02x:%02x", bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
+	return;
+}
+
+void getIPAddr(char ipAddr[IPADDR_BUFLEN], u_int32_t naddr) {
+	u_int32_t haddr;
+	haddr = ntohl(naddr);
+	sprintf(ipAddr, "%d.%d.%d.%d", (haddr&0xFF000000)>>24, (haddr&0xFF0000)>>16, (haddr&0xFF00)>>8, haddr&0xFF);
 	return;
 }
 
