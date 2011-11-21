@@ -103,13 +103,13 @@ int main(int argc, char* argv[]) {
 	
     //Print the total number of packets.
 	cout<<"Total number of packets: "<<g_numPackets<<endl;
-    //Report the average, minimum, and maximum packet sizes. The packet size refers to everything beyond the tcpdump header.
+    //Report the average, minimum, and maximum packet sizes.
 	cout<<"Min packet size: "<<g_minPacketSize<<" Bytes"<<endl
 		<<"Max packet size: "<<g_maxPacketSize<<" Bytes"<<endl
 		<<"Avg packet size: "<<(double)g_totalPacketSize/(double)g_numPackets<<" Bytes"<<endl;
 		
 	
-    //Create two lists, one for unique senders and one for unique recipients, along with the total number of packets associated with each. This should be done at two layers: Ethernet and IP. For Ethernet, represent the addresses in hex-colon notation. For IP addresses, use the standard dotted decimal notation.
+    //Print unique senders and recipients of Ethernet frames and IP packets
 	cout<<endl<<"Ethernet Senders:"<<endl;
 	printMap(g_etherSenderPacketCounts);
 	cout<<endl<<"Ethernet Recipients:"<<endl;
@@ -119,11 +119,11 @@ int main(int argc, char* argv[]) {
 	cout<<endl<<"IP Recipients:"<<endl;
 	printMap(g_IPRecipientPacketCounts);
 	
-    //Create a list of machines participating in ARP, including their associated MAC addresses and, where possible, the associated IP addresses.
+    //Print list of ARP Participants (machines make or respond to ARP requests)
 	cout<<endl<<"ARP Participants:"<<endl;
 	printArpMap(g_ARPParticipants);
 	
-    //For UDP, create two lists for the unique ports seen: one for the source ports and one for the destination ports.
+    //Print lists of unique UDP source ports and UDP destination ports
 	cout<<endl<<"UDP Source Ports:"<<endl;
 	printSet(g_UDPSourcePorts);
 	cout<<endl<<"UDP Destination Ports:"<<endl;
@@ -133,6 +133,7 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
+//Function to handle a packet
 void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
 	char hAddr[HADDR_BUFLEN] = "";
 	char ipAddr[IPADDR_BUFLEN] = "";
@@ -199,11 +200,9 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
 		struct ether_arp *arph = (ether_arp *)(bytes+ETH_HLEN);
 		arpMapUpdate(g_ARPParticipants, arph->arp_sha, arph->arp_spa);
 	}
-	else {
-		
-	}
 }
 
+//Determines if a timeval struct is 0.
 bool timeval_isZero(struct timeval tv) {
 	return tv.tv_sec == 0 && tv.tv_usec == 0;
 }
@@ -240,11 +239,13 @@ int timeval_subtract(struct timeval *result, struct timeval tv1, struct timeval 
 	}
 }
 
+//Get hardware (MAC) address string from the bytes representing the address in the Ethernet header
 void getHAddr(char hAddr[HADDR_BUFLEN], u_int8_t bytes[ETH_ALEN]) {
 	sprintf(hAddr, "%02x:%02x:%02x:%02x:%02x:%02x", bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
 	return;
 }
 
+//Get an IP address string from a 32-bit integer from the IP header (assume network byte order)
 void getIPAddr(char ipAddr[IPADDR_BUFLEN], u_int32_t naddr) {
 	u_int32_t haddr;
 	haddr = ntohl(naddr);
@@ -275,6 +276,7 @@ void printSet(set<u_int16_t> &toPrint) {
 	}
 }
 
+//Given a map and a key, increment the value at the key, or set the value to 1 if it doesn't already exist.
 void mapIncrement(map<string, int> &toUpdate, const string &key) {
 	if(toUpdate.find(key) == toUpdate.end()) {
 		toUpdate[key] = 1;
@@ -285,6 +287,7 @@ void mapIncrement(map<string, int> &toUpdate, const string &key) {
 	return;
 }
 
+//Update the ARP map given a hardware address from the ARP packet and an IP address from the ARP packet
 void arpMapUpdate(multimap<string, string> &toUpdate, u_int8_t ha[ETH_ALEN], u_int8_t pa[4]) {
 	char hAddr[HADDR_BUFLEN];
 	char ipAddr[IPADDR_BUFLEN];
