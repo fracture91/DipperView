@@ -110,23 +110,43 @@ int main(int argc, char* argv[]) {
 		
 	
     //Print unique senders and recipients of Ethernet frames and IP packets
-	cout<<endl<<"Ethernet Senders:"<<endl;
+	cout<<endl;
+	cout<<"+--------------------+-------+"<<endl
+		<<"| Ethernet Senders   | Count |"<<endl;
 	printMap(g_etherSenderPacketCounts);
-	cout<<endl<<"Ethernet Recipients:"<<endl;
+	
+	cout<<endl;
+	cout<<"+--------------------+-------+"<<endl
+		<<"| Ethernet Recipients| Count |"<<endl;
 	printMap(g_etherRecipientPacketCounts);	
-	cout<<endl<<"IP Senders:"<<endl;
+	
+	cout<<endl;
+	cout<<"+--------------------+-------+"<<endl
+		<<"|     IP Senders     | Count |"<<endl;
 	printMap(g_IPSenderPacketCounts);
-	cout<<endl<<"IP Recipients:"<<endl;
+	
+	cout<<endl;
+	cout<<"+--------------------+-------+"<<endl
+		<<"|    IP Recipients   | Count |"<<endl;
 	printMap(g_IPRecipientPacketCounts);
 	
     //Print list of ARP Participants (machines make or respond to ARP requests)
-	cout<<endl<<"ARP Participants:"<<endl;
+	cout<<endl;
+	cout<<"+-----------------------------------------+"<<endl
+		<<"|             ARP Participants            |"<<endl
+		<<"+--------------------+--------------------+"<<endl
+		<<"|  Hardware Address  |     IP Address     |"<<endl;
 	printArpMap(g_ARPParticipants);
 	
     //Print lists of unique UDP source ports and UDP destination ports
-	cout<<endl<<"UDP Source Ports:"<<endl;
+	cout<<endl;
+	cout<<"+-----------------------+"<<endl
+		<<"|   UDP Source Ports    |"<<endl;
 	printSet(g_UDPSourcePorts);
-	cout<<endl<<"UDP Destination Ports:"<<endl;
+	
+	cout<<endl;
+	cout<<"+-----------------------+"<<endl
+		<<"| UDP Destination Ports |"<<endl;
 	printSet(g_UDPDestPorts);
 	
 	
@@ -255,25 +275,31 @@ void getIPAddr(char ipAddr[IPADDR_BUFLEN], u_int32_t naddr) {
 
 void printMap(map<string, int> &toPrint) {
 	map<string, int>::iterator mapIt;
+	printf("+--------------------+-------+\n");
 	for(mapIt = toPrint.begin(); mapIt != toPrint.end(); mapIt++) {
-		cout<<mapIt->first<<" "<<mapIt->second<<endl;
+		printf("| %-18s | %5d |\n", mapIt->first.c_str(), mapIt->second);
 	}
+	printf("+--------------------+-------+\n");
 	return;
 }
 
 void printArpMap(multimap<string, string> &toPrint) {
 	map<string, string>::iterator mapIt;
+	printf("+--------------------+--------------------+\n");
 	for(mapIt = toPrint.begin(); mapIt != toPrint.end(); mapIt++) {
-		cout<<mapIt->first<<" "<<mapIt->second<<endl;
+		printf("| %-18s | %-18s |\n", mapIt->first.c_str(), mapIt->second.c_str());
 	}
+	printf("+--------------------+--------------------+\n");
 	return;
 }
 
 void printSet(set<u_int16_t> &toPrint) {
 	set<u_int16_t>::iterator setIt;
+	printf("+-----------------------+\n");
 	for(setIt = toPrint.begin(); setIt != toPrint.end(); setIt++) {
-		cout<<*setIt<<endl;
+		printf("|         %5hu         |\n", *setIt);
 	}
+	printf("+-----------------------+\n");
 }
 
 //Given a map and a key, increment the value at the key, or set the value to 1 if it doesn't already exist.
