@@ -5,11 +5,18 @@
 #include <cstring>
 #include <pcap.h>
 #include <sys/time.h>
+#include <net/ethernet.h>
 using namespace std;
+
+#define HADDR_BUFLEN 18
 
 void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes);
 bool timeval_isZero(struct timeval tv);
 int timeval_subtract(struct timeval *result, struct timeval tv1, struct timeval tv0);
+void getHAddr(char hAddr[HADDR_BUFLEN], u_int8_t bytes[ETH_ALEN]);
+void printMap(map<string, int> &toPrint);
+void printMap(map<string, string> &toPrint);
+void mapIncrement(map<string, int> &toUpdate, const string &key);
 
 //statistics
 struct timeval g_startTime;
@@ -36,6 +43,8 @@ int main(int argc, char* argv[]) {
 	struct tm *ptm = NULL;
 	char timeStamp[32] = "";
 	struct timeval elapsedTime;
+	map<string, int>::iterator countIterator;
+	map<string, string>::iterator participantIterator;
 	
 	g_startTime.tv_sec = 0;
 	g_startTime.tv_usec = 0;
@@ -88,20 +97,29 @@ int main(int argc, char* argv[]) {
     //Print the total number of packets.
 	cout<<"Total number of packets: "<<g_numPackets<<endl;
 	
-    //Create two lists, one for unique senders and one for unique recipients, along with the total number of packets associated with each. This should be done at two layers: Ethernet and IP. For Ethernet, represent the addresses in hex-colon notation. For IP addresses, use the standard dotted decimal notation.
     //Create a list of machines participating in ARP, including their associated MAC addresses and, where possible, the associated IP addresses.
     //For UDP, create two lists for the unique ports seen: one for the source ports and one for the destination ports.
     //Report the average, minimum, and maximum packet sizes. The packet size refers to everything beyond the tcpdump header.
 	cout<<"Min packet size: "<<g_minPacketSize<<" Bytes"<<endl
 		<<"Max packet size: "<<g_maxPacketSize<<" Bytes"<<endl
 		<<"Avg packet size: "<<(double)g_totalPacketSize/(double)g_numPackets<<" Bytes"<<endl;
+		
+	
+    //Create two lists, one for unique senders and one for unique recipients, along with the total number of packets associated with each. This should be done at two layers: Ethernet and IP. For Ethernet, represent the addresses in hex-colon notation. For IP addresses, use the standard dotted decimal notation.
+	cout<<"Ethernet Senders:"<<endl;
+	printMap(g_etherSenderPacketCounts);
+	cout<<"Ethernet Recipients:"<<endl;
+	printMap(g_etherRecipientPacketCounts);	
 	
 	return 0;
 }
 
 void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+	char hAddr[18] = "";
 	cout << "Yay packet" << endl;
-	//deal with statistics
+	//
+	// Pcap header
+	//
 	//time
 	if(timeval_isZero(g_startTime) || timeval_subtract(NULL, h->ts, g_startTime) == -1) {
 		memcpy(&g_startTime, &(h->ts), sizeof(struct timeval));
@@ -121,7 +139,19 @@ void callback(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
 	//use portion size to prevent double-counting packets
 	g_totalPacketSize += h->caplen;
 	
-
+	//
+	// Ethernet Header
+	//
+	struct ether_header *eth = (ether_header *)bytes;
+	//sending host
+	getHAddr(hAddr, eth->ether_shost);
+	mapIncrement(g_etherSenderPacketCounts, hAddr);
+	
+	//destination host
+	getHAddr(hAddr, eth->ether_dhost);
+	mapIncrement(g_etherRecipientPacketCounts, hAddr);
+	
+	
 }
 
 bool timeval_isZero(struct timeval tv) {
@@ -158,4 +188,35 @@ int timeval_subtract(struct timeval *result, struct timeval tv1, struct timeval 
 	else {
 		return 0;
 	}
+}
+
+void getHAddr(char hAddr[HADDR_BUFLEN], u_int8_t bytes[ETH_ALEN]) {
+	sprintf(hAddr, "%02x:%02x:%02x:%02x:%02x:%02x", bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
+	return;
+}
+
+void printMap(map<string, int> &toPrint) {
+	map<string, int>::iterator mapIt;
+	for(mapIt = toPrint.begin(); mapIt != toPrint.end(); mapIt++) {
+		cout<<mapIt->first<<" "<<mapIt->second<<endl;
+	}
+	return;
+}
+
+void printMap(map<string, string> &toPrint) {
+	map<string, string>::iterator mapIt;
+	for(mapIt = toPrint.begin(); mapIt != toPrint.end(); mapIt++) {
+		cout<<mapIt->first<<" "<<mapIt->second<<endl;
+	}
+	return;
+}
+
+void mapIncrement(map<string, int> &toUpdate, const string &key) {
+	if(toUpdate.find(key) == toUpdate.end()) {
+		toUpdate[key] = 1;
+	}
+	else {
+		toUpdate[key]++;
+	}
+	return;
 }
